@@ -1,0 +1,124 @@
+# --- Load Required Libraries ---
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+# --- Configuration ---
+file_path <- "100m.csv"
+# Column name for wind direction at this altitude.
+wind_direction_col_name <- "wind direction at 100m (deg)"
+message("Script configured to process '100m.csv' for an annual wind rose.")
+
+# --- 1. Data Loading and Preparation ---
+wind_data_processed <- tibble()
+
+tryCatch({
+  # Check if the file exists before attempting to read
+  if (!file.exists(file_path)) {
+    stop(paste("File not found:", file_path))
+  }
+  
+  # Read the CSV file. check.names = FALSE is crucial for complex column names.
+  raw_data <- read.csv(file_path, header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+  message(paste("Successfully read:", file_path, "- Rows:", nrow(raw_data), "Cols:", ncol(raw_data)))
+  
+  # Define columns needed for this script
+  required_cols <- c("Year", "Month", "Day", "Hour", "Minute", wind_direction_col_name)
+  
+  # Validate that all required columns are present
+  if (!all(required_cols %in% names(raw_data))) {
+    missing_cols <- required_cols[!required_cols %in% names(raw_data)]
+    stop(paste("The file is missing required columns:", paste(missing_cols, collapse = ", ")))
+  }
+  
+  # Process the data using a dplyr pipeline
+  wind_data_processed <- raw_data %>%
+    as_tibble() %>%
+    # Select only the columns we need
+    select(all_of(required_cols)) %>%
+    # Rename for easier access
+    rename(wind_direction_deg = !!sym(wind_direction_col_name)) %>%
+    # Convert relevant columns to numeric, coercing errors to NA
+    mutate(across(c(Year, Month, Day, Hour, Minute, wind_direction_deg), as.numeric)) %>%
+    # Remove rows where essential data is missing
+    filter(!is.na(Year), !is.na(Month), !is.na(wind_direction_deg)) %>%
+    # Round wind direction and determine the season
+    mutate(
+      wind_direction_deg = round(wind_direction_deg),
+      season = case_when(
+        Month %in% c(12, 1, 2) ~ "Winter",
+        Month %in% c(3, 4, 5)  ~ "Spring",
+        Month %in% c(6, 7, 8)  ~ "Summer",
+        Month %in% c(9, 10, 11) ~ "Fall"
+      )
+    ) %>%
+    # Ensure seasons are ordered logically in the plot legend
+    mutate(season = factor(season, levels = c("Winter", "Spring", "Summer", "Fall")))
+  
+  message("Data processing complete.")
+  message(paste("Total rows prepared for plotting:", nrow(wind_data_processed)))
+  
+}, error = function(e) {
+  message(paste("An error occurred:", e$message))
+})
+
+
+# --- 2. Visualization ---
+if (nrow(wind_data_processed) > 0) {
+  # Define a clear color palette for the seasons
+  season_colors <- c(
+    "Winter" = "#3182bd", # Blue
+    "Spring" = "#2ca25f", # Green
+    "Summer" = "#fec44f", # Yellow-Orange
+    "Fall"   = "#d95f0e"  # Orange-Brown
+  )
+  
+  message("Generating aggregated annual wind rose plot...")
+  
+  # Create the circular histogram plot.
+  # The key change is the removal of facet_wrap() to combine all data into one plot.
+  annual_wind_rose_plot <- ggplot(wind_data_processed, aes(x = wind_direction_deg, fill = season)) +
+    # Use geom_histogram to count occurrences. The fill aesthetic stacks the seasons automatically.
+    geom_histogram(binwidth = 10, boundary = 0, closed = "left", color = "white", size = 0.1) +
+    # Convert to a polar coordinate system. `start` places North (0/360) at the top.
+    coord_polar(start = (-pi/ 180 * 180), direction = 1) +
+    # Apply the custom seasonal colors. The legend title is set here.
+    scale_fill_manual(values = season_colors, name = "Season") +
+    # Set the breaks and labels for the angle (x-axis) for clarity
+    scale_x_continuous(
+      limits = c(0, 360),
+      breaks = c(0, 90, 180, 270),
+      labels = c("S", "W", "N", "E")
+    ) +
+    # Add informative titles and labels for the annual plot
+    labs(
+      title = "Annual Prevailing Wind Direction at 100m",
+      subtitle = "Hourly readings aggregated for the full year, colored by season.\nEach ring represents 100 hourly counts.",
+      x = "",
+      y = "Frequency"
+    ) +
+    # Apply a clean theme and adjust elements for readability
+    theme_minimal() +
+    theme(
+      legend.position = "bottom",
+      legend.title = element_text(face = "bold"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      axis.text.x = element_text(size = 12, face="bold"),
+      plot.title = element_text(hjust = 0.5, face = "bold", size=16),
+      plot.subtitle = element_text(hjust = 0.5)
+    )
+  
+  # --- 3. Save the Plot to a File ---
+  plot(annual_wind_rose_plot)
+  output_filename <- "annual_wind_rose_100m.png"
+  tryCatch({
+    ggsave(output_filename, plot = annual_wind_rose_plot, width = 10, height = 8, dpi = 300)
+    message(paste("Plot successfully saved as:", output_filename))
+  }, error = function(e) {
+    message(paste("Failed to save plot:", e$message))
+  })
+  
+} else {
+  message("No data was available for plotting. Please check the input file and column names.")
+}
