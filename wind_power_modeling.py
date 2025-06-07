@@ -56,6 +56,14 @@ WIND_EFFICIENCY_FACTOR = 0.9
 TURBINE_INSTALL_COST_FACTOR = 1300 # $ / kWh
 MAINTENANCE_COST_PER_KWH = 0.015
 GRID_PURCHASE_COST_PER_KWH = 0.32197
+INTEREST_RATE = 0.05 # Arbitrary; this should be changed and justified
+PROJECT_LIFETIME = 30 # Arbitrary; this should be changed and justified
+
+# System design
+num_turbines = 40
+num_solar = 0 # Not implemented yet
+
+# TURBINE_LOOP = False
 
 # Apply the scaling factor to the demand data
 aligned_demand['scaled_demand_kWh'] = aligned_demand['demand (kWh)'].clip(lower=0) * DEMAND_SCALING_FACTOR
@@ -68,9 +76,9 @@ aligned_wind['capped_power_kWh'] = aligned_wind['wind power (kWh)'].clip(upper=M
 results_list = []
 
 # Loop through a range of turbine numbers (from 5 to 15)
-for num_turbines in range(50):
+for num_turbines_loop in range(num_turbines):
     # Calculate the total wind generation for the current number of turbines
-    total_wind_generation = aligned_wind['capped_power_kWh'] * num_turbines * WIND_EFFICIENCY_FACTOR
+    total_wind_generation = aligned_wind['capped_power_kWh'] * num_turbines_loop * WIND_EFFICIENCY_FACTOR
     #print(total_wind_generation)
     
     # Calculate the hour-by-hour mismatch between generation and demand
@@ -84,7 +92,7 @@ for num_turbines in range(50):
 
     # --- Financial Calculations ---
     # Installation cost for all turbines
-    install_cost = num_turbines * TURBINE_INSTALL_COST_FACTOR * (MAX_WIND_PRODUCTION_PER_TURBINE_KWH)
+    install_cost = num_turbines_loop * TURBINE_INSTALL_COST_FACTOR * (MAX_WIND_PRODUCTION_PER_TURBINE_KWH)
     # Maintenance cost based on total kWh produced
     maintenance_cost = total_energy_produced * MAINTENANCE_COST_PER_KWH
     # Cost to purchase energy from the grid when there is a deficit (mismatch < 0)
@@ -106,15 +114,25 @@ for num_turbines in range(50):
 
     # Calculate the total energy balance for the year
     total_energy_balance = total_energy_produced - total_demand
+
+    # Calculate capacity factor
+    capacity_factor = total_energy_produced / (8760 * num_turbines_loop * MAX_WIND_PRODUCTION_PER_TURBINE_KWH)
     
     # Calculate annual revenue and other notable financial metrics
-    no_renewable_cost = total_demand * purchase_cost
-    yearly_net_operating_cost = surplus_revenue - maintenance_cost - purchase_cost
-    new_system_savings = yearly_net_operating_cost - no_renewable_cost
+    no_renewable_cost = total_demand * GRID_PURCHASE_COST_PER_KWH
+    yearly_net_system_cost = -(surplus_revenue - maintenance_cost - purchase_cost)
+    new_system_savings = no_renewable_cost - yearly_net_system_cost
+
+    # LCOE
+    annual_operating_cost = 750000
+    annual_energy_production_kwh = 20000000
+
+    # --- Calculation --- STILL REALLY SCUFFED NEEDS FIXING
+   # lcoe = (install_cost + ((maintenance_cost) * ((1 - (1 + INTEREST_RATE) ** -PROJECT_LIFETIME) / INTEREST_RATE))) / (total_energy_produced * PROJECT_LIFETIME)
 
     # Store the results for the current scenario in a dictionary
     results_list.append({
-        'Number of Turbines': num_turbines,
+        'Number of Turbines': num_turbines_loop,
         'Annual Installation Cost': install_cost,
         'Annual Operation/Maintenance Cost': maintenance_cost,
         'Annual Cost of Purchasing Electricity': purchase_cost,
@@ -123,8 +141,10 @@ for num_turbines in range(50):
         'Total Demand (kWh)': total_demand,
         'Total Energy Balance (kWh)': total_energy_balance,
         'Cost of Grid Without Renewables': no_renewable_cost,
-        'Annual Net Operating Cost': yearly_net_operating_cost,
-        'Savings From Implementation of System': new_system_savings
+        'Capacity Factor': capacity_factor,
+        'Annual Net Operating Cost': yearly_net_system_cost,
+        'Savings From Implementation of System, Disregarding Installation Cost': new_system_savings
+        #'Levelized Cost of Energy': lcoe
     })
 
 # Create a DataFrame from the list of results
@@ -150,4 +170,4 @@ plt.grid(axis='y', linestyle='--')
 plt.tight_layout()
 
 # Display the plot
-plt.show()
+# plt.show() CURRENTLY COMMENTED OUT
