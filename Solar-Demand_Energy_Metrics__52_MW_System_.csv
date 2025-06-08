@@ -1,0 +1,8 @@
+Metric,Value,Calculation
+Total Annual Demand (kWh),212292665.0,Σ(UCDdemand_kW)
+Total Solar Generation (kWh),60487758.2484396,Σ(Solar_kWh)
+Solar Coverage (%),28.492627500078537,(Total Solar / Total Demand) × 100
+Direct Demand Met by Solar (%),28.459209693580135,100 - (Deficit / Demand) × 100
+Total Surplus Energy (kWh),70943.55200000013,Σ(Solar - Demand) where Net > 0
+Total Unmet Demand (kWh),151875850.3035604,Σ(Demand - Solar) where Net < 0
+Exported Solar Energy (%),0.11728580138251404,(Surplus / Solar) × 100
