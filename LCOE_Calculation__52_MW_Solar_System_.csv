@@ -1,0 +1,9 @@
+Component,Value,Formula
+Capital Cost,"$52,000,000",Given
+Annual O&M Cost,"$520,000",Given
+Discount Rate,7.00%,Given
+Project Lifetime (years),25,Given
+Present Value of O&M,"$6,059,863.25",O&M × [1 - (1 + r)^-N] / r
+Total Lifecycle Cost,"$58,059,863.25",Capital + PV(O&M)
+Total Lifetime Energy (kWh),"1,512,193,956.21 kWh",Annual Solar × Lifetime
+LCOE ($/kWh),$0.0384 / kWh,Total Cost / Total Energy
